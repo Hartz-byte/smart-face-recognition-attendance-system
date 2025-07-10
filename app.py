@@ -17,7 +17,7 @@ MODEL_PATH = "notebooks/saved_model/vit_face_classifier.pth"
 EMBEDDINGS_FILE = "notebooks/saved_embeddings/face_embeddings.npy"
 NAMES_FILE = "notebooks/saved_embeddings/face_names.npy"
 ATTENDANCE_CSV = "attendance_log.csv"
-SIMILARITY_THRESHOLD = 0.6
+SIMILARITY_THRESHOLD = 0.7
 
 # Device & transform
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -71,10 +71,23 @@ def mark_attendance(name):
 
 # StreamLit UI
 st.title("Smart Attendance System")
+
+# Sidebar for live tracking
+st.sidebar.title("Live Dashboard")
+prediction_placeholder = st.sidebar.empty()
+score_placeholder = st.sidebar.empty()
+accuracy_placeholder = st.sidebar.empty()
+class_count_placeholder = st.sidebar.empty()
+
+# Prediction, accuracy, and count tracking
+prediction_list = []
+score_list = []
+class_counts = {name: 0 for name in os.listdir("registered_faces")}
+
 option = st.selectbox("Choose an Option", ["Run Attendance", "View Attendance Log", "Add New Person"])
 
 camera_index = 0
- 
+
 if option == "Run Attendance":
     st.info("Click start attendance and align your face in front of the camera.")
     run = st.button("Start Attendance")
@@ -98,9 +111,24 @@ if option == "Run Attendance":
                 name = names[max_idx]
                 mark_attendance(name)
                 color = (0, 180, 0)
+                class_counts[name] += 1
             else:
                 name = "Unknown"
                 color = (0, 0, 255)
+
+            # Update the prediction and score
+            prediction_list.append(name)
+            score_list.append(max_sim)
+
+            # Calculate accuracy
+            correct_preds = sum([1 for p, t in zip(prediction_list, names) if p == t])
+            accuracy = correct_preds / len(prediction_list) * 100 if len(prediction_list) > 0 else 0
+
+            # Update sidebar with prediction, score, accuracy, and class count
+            prediction_placeholder.text(f"Latest Prediction: {name}")
+            score_placeholder.text(f"Latest Score: {max_sim:.2f}")
+            accuracy_placeholder.text(f"Accuracy: {accuracy:.2f}%")
+            class_count_placeholder.text(f"Class Counts: {class_counts}")
 
             cv2.putText(frame, f"{name} ({max_sim:.2f})", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
             stframe.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))

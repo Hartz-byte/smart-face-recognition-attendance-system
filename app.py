@@ -18,7 +18,7 @@ MODEL_PATH = "notebooks/saved_model/vit_face_classifier.pth"
 EMBEDDINGS_FILE = "notebooks/saved_embeddings/face_embeddings.npy"
 NAMES_FILE = "notebooks/saved_embeddings/face_names.npy"
 ATTENDANCE_CSV = "attendance_log.csv"
-SIMILARITY_THRESHOLD = 0.7
+SIMILARITY_THRESHOLD = 0.65
 
 # Device & transform
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -75,25 +75,16 @@ option = st.selectbox("Choose an Option", ["Run Attendance", "View Attendance Lo
 
 if option == "Run Attendance":
     st.info("Click start attendance and align your face in front of the camera.")
-
-    # Initialize session state if not already
-    if "run_attendance" not in st.session_state:
-        st.session_state.run_attendance = False
-
-    # Button toggles session state
-    if st.button("Start Attendance" if not st.session_state.run_attendance else "Stop Attendance"):
-        st.session_state.run_attendance = not st.session_state.run_attendance
-
-    if st.session_state.run_attendance:
+    run = st.button("Start Attendance")
+    if run:
         embeddings, names = load_registered_embeddings()
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(0)
         stframe = st.empty()
 
-        while st.session_state.run_attendance:
+        while True:
             ret, frame = cap.read()
             if not ret:
                 break
-
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             face_img = Image.fromarray(rgb)
             emb = get_embedding(face_img)
@@ -112,13 +103,11 @@ if option == "Run Attendance":
             cv2.putText(frame, f"{name} ({max_sim:.2f})", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
             stframe.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
-            if not st.session_state.run_attendance:
+            if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
         cap.release()
         cv2.destroyAllWindows()
-        stframe.empty()
-        st.success("Attendance stopped.")
 
 elif option == "View Attendance Log":
     if os.path.exists(ATTENDANCE_CSV):

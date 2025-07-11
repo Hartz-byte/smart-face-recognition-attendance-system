@@ -73,12 +73,14 @@ def mark_attendance(name):
 st.title("Smart Attendance System")
 option = st.selectbox("Choose an Option", ["Run Attendance", "View Attendance Log", "Add New Person"])
 
+camera_index = 0
+ 
 if option == "Run Attendance":
     st.info("Click start attendance and align your face in front of the camera.")
     run = st.button("Start Attendance")
     if run:
         embeddings, names = load_registered_embeddings()
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(camera_index)
         stframe = st.empty()
 
         while True:
@@ -121,11 +123,11 @@ elif option == "Add New Person":
     capture_btn = st.button("Capture & Save Face (30 images)")
 
     if name and capture_btn:
-        st.info(f"Capturing 30 images for {name}... Please align your face properly.")
+        st.info(f"Capturing 30 images for {name}... Please click different angles of your face.")
         save_dir = os.path.join("registered_faces", name)
         os.makedirs(save_dir, exist_ok=True)
 
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(camera_index)
         captured = 0
         total_images = 30
         stframe = st.empty()

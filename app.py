@@ -11,6 +11,7 @@ from datetime import datetime
 import streamlit as st
 from sklearn.metrics.pairwise import cosine_similarity
 from transformers import ViTModel
+from torchvision import datasets
 
 # Config
 MODEL_PATH = "notebooks/saved_model/vit_face_classifier.pth"
@@ -69,21 +70,30 @@ def mark_attendance(name):
     df.to_csv(ATTENDANCE_CSV, index=False)
 
 # StreamLit UI
-st.title("Smart Attendance System with ViT")
-option = st.selectbox("Choose an Option", ["Run Attendance", "View Attendance Log"])
+st.title("Smart Attendance System")
+option = st.selectbox("Choose an Option", ["Run Attendance", "View Attendance Log", "Add New Person"])
 
 if option == "Run Attendance":
     st.info("Click start attendance and align your face in front of the camera.")
-    run = st.button("Start Attendance")
-    if run:
+
+    # Initialize session state if not already
+    if "run_attendance" not in st.session_state:
+        st.session_state.run_attendance = False
+
+    # Button toggles session state
+    if st.button("Start Attendance" if not st.session_state.run_attendance else "Stop Attendance"):
+        st.session_state.run_attendance = not st.session_state.run_attendance
+
+    if st.session_state.run_attendance:
         embeddings, names = load_registered_embeddings()
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(2)
         stframe = st.empty()
 
-        while True:
+        while st.session_state.run_attendance:
             ret, frame = cap.read()
             if not ret:
                 break
+
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             face_img = Image.fromarray(rgb)
             emb = get_embedding(face_img)
@@ -102,11 +112,13 @@ if option == "Run Attendance":
             cv2.putText(frame, f"{name} ({max_sim:.2f})", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
             stframe.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if not st.session_state.run_attendance:
                 break
 
         cap.release()
         cv2.destroyAllWindows()
+        stframe.empty()
+        st.success("Attendance stopped.")
 
 elif option == "View Attendance Log":
     if os.path.exists(ATTENDANCE_CSV):
@@ -114,3 +126,68 @@ elif option == "View Attendance Log":
         st.dataframe(df)
     else:
         st.warning("No attendance log found yet.")
+
+elif option == "Add New Person":
+    name = st.text_input("Enter Name of the Person")
+    capture_btn = st.button("Capture & Save Face (30 images)")
+
+    if name and capture_btn:
+        st.info(f"Capturing 30 images for {name}... Please align your face properly.")
+        save_dir = os.path.join("registered_faces", name)
+        os.makedirs(save_dir, exist_ok=True)
+
+        cap = cv2.VideoCapture(2)
+        captured = 0
+        total_images = 30
+        stframe = st.empty()
+
+        while captured < total_images:
+            ret, frame = cap.read()
+            if not ret:
+                continue
+
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            stframe.image(rgb, channels="RGB", caption=f"Capturing Image {captured+1}/{total_images}")
+
+            img_pil = Image.fromarray(rgb)
+            img_path = os.path.join(save_dir, f"{captured}.jpg")
+            img_pil.save(img_path)
+            captured += 1
+
+            cv2.waitKey(500)  # 500 ms pause between captures
+
+        cap.release()
+        cv2.destroyAllWindows()
+        st.success(f"Images captured and saved for {name}")
+
+        # Re-import if not already
+        from torchvision import datasets
+
+        # Regenerate embeddings
+        st.info("Updating embeddings...")
+
+        transform_refresh = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor()
+        ])
+
+        dataset = datasets.ImageFolder(root="registered_faces", transform=transform_refresh)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=4, shuffle=False)
+
+        new_embeddings, new_names = [], []
+
+        with torch.no_grad():
+            for imgs, labels in loader:
+                imgs = imgs.to(device)
+                output = model.vit(pixel_values=imgs)
+                pooled = output.last_hidden_state[:, 0].cpu().numpy()
+                new_embeddings.append(pooled)
+                new_names += [dataset.classes[label] for label in labels]
+
+        all_embeddings = np.vstack(new_embeddings)
+        all_names = np.array(new_names)
+
+        np.save(EMBEDDINGS_FILE, all_embeddings)
+        np.save(NAMES_FILE, all_names)
+
+        st.success("Embeddings updated successfully")

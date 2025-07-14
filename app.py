@@ -87,7 +87,7 @@ pred_placeholder = st.sidebar.empty()
 emotion_placeholder = st.sidebar.empty()
 
 option = st.selectbox("Choose Option", ["Run System", "View Attendance", "Add New Person", "Update Embeddings"])
-camera_index = 0
+camera_index = 1
 
 if option == "Run System":
     run = st.button("Start Camera")

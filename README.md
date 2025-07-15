@@ -1,4 +1,12 @@
 # Smart Multi-Task Face Recognition System
+
+![Python](https://img.shields.io/badge/Python-3.10-blue?logo=python)
+![PyTorch](https://img.shields.io/badge/PyTorch-Framework-EE4C2C?logo=pytorch)
+![Streamlit](https://img.shields.io/badge/Built%20with-Streamlit-FF4B4B?logo=streamlit)
+![Transformer](https://img.shields.io/badge/Model-ViT--Base--Patch16--224-yellow?logo=huggingface)
+![Status](https://img.shields.io/badge/Project%20Status-Portfolio%20Demo-brightgreen)
+![License](https://img.shields.io/badge/License-MIT-lightgrey)
+
 A real-world, multi-task deep learning application that performs:
 - Face Recognition (Attendance System)
 - Emotion Detection

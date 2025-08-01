@@ -1,16 +1,13 @@
-import os
-import cv2
-import torch
-import numpy as np
-import pandas as pd
 import streamlit as st
+import cv2
+import numpy as np
+import torch
 from PIL import Image
-from datetime import datetime
-from torchvision import transforms, datasets
-from sklearn.metrics.pairwise import cosine_similarity
+import os
 
-from face_model import load_model
-from emotion_model import decode_emotion
+from inference.model_loader import load_triple_head_model
+from inference.pipeline import run_inference
+from inference.utils import load_embeddings, mark_attendance
 
 # Config
 MODEL_PATH = "./notebooks/saved_model/triple_head_vit.pth"
@@ -19,41 +16,12 @@ NAMES_FILE = "./notebooks/saved_embeddings/face_names.npy"
 ATTENDANCE_CSV = "./attendance_log.csv"
 REGISTERED_DIR = "./registered_faces"
 SIMILARITY_THRESHOLD = 0.60
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor()
-])
+# Load model
+model = load_triple_head_model(MODEL_PATH, DEVICE)
 
-# Load model (triple head)
-model, face_class_map, emotion_class_map = load_model(MODEL_PATH, device)
-
-def get_all_predictions(image):
-    tensor = transform(image).unsqueeze(0).to(device)
-    with torch.no_grad():
-        face_logits, emotion_logits, spoof_logits = model(tensor)
-        features = model.vit(pixel_values=tensor).last_hidden_state[:, 0]
-        spoof_prob = torch.sigmoid(spoof_logits).item()
-        return features[0].cpu().numpy(), emotion_logits[0].cpu(), spoof_prob
-
-def load_embeddings():
-    return np.load(EMBEDDINGS_FILE), np.load(NAMES_FILE)
-
-def mark_attendance(name):
-    now = datetime.now()
-    date_str = now.strftime('%Y-%m-%d')
-    time_str = now.strftime('%H:%M:%S')
-    if os.path.exists(ATTENDANCE_CSV):
-        df = pd.read_csv(ATTENDANCE_CSV)
-        if ((df['Name'] == name) & (df['Date'] == date_str)).any():
-            return
-    else:
-        df = pd.DataFrame(columns=['Name', 'Date', 'Time'])
-    df = pd.concat([df, pd.DataFrame([{'Name': name, 'Date': date_str, 'Time': time_str}])], ignore_index=True)
-    df.to_csv(ATTENDANCE_CSV, index=False)
-
-# UI Setup
+# Streamlit UI
 st.title("Smart Attendance System")
 st.sidebar.title("Live Predictions")
 pred_placeholder = st.sidebar.empty()
@@ -66,7 +34,7 @@ camera_index = 1
 if option == "Run System":
     run = st.button("Start Camera")
     if run:
-        embeddings, names = load_embeddings()
+        embeddings, names = load_embeddings(EMBEDDINGS_FILE, NAMES_FILE)
         cap = cv2.VideoCapture(camera_index)
         stframe = st.empty()
 
@@ -77,9 +45,12 @@ if option == "Run System":
 
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pil_img = Image.fromarray(rgb)
-            emb, emotion_logits, spoof_score = get_all_predictions(pil_img)
+            output = run_inference(model, pil_img, DEVICE)
+            emb = output["features"]
+            emotion_logits = output["emotion_logits"]
+            spoof_score = output["spoof_prob"]
 
-            # Spoof Check
+            # Spoof detection
             if spoof_score > 0.5:
                 text = "Spoof Detected!"
                 color = (0, 0, 255)
@@ -89,19 +60,22 @@ if option == "Run System":
                 continue
 
             # Face recognition
+            from sklearn.metrics.pairwise import cosine_similarity
+
             sims = cosine_similarity([emb], embeddings)[0]
             max_idx = np.argmax(sims)
             max_sim = sims[max_idx]
 
             if max_sim > SIMILARITY_THRESHOLD:
                 name = names[max_idx]
-                mark_attendance(name)
+                mark_attendance(name, ATTENDANCE_CSV)
                 color = (0, 255, 0)
             else:
                 name = "Unknown"
                 color = (255, 0, 0)
 
             # Emotion
+            from emotion_model import decode_emotion
             emotion, emotion_score = decode_emotion(emotion_logits)
 
             # Display
@@ -121,6 +95,7 @@ if option == "Run System":
 
 elif option == "View Attendance":
     if os.path.exists(ATTENDANCE_CSV):
+        import pandas as pd
         df = pd.read_csv(ATTENDANCE_CSV)
         st.dataframe(df)
     else:
@@ -165,15 +140,19 @@ elif option == "Add New Person":
 elif option == "Update Embeddings":
     if st.button("Regenerate Now"):
         from torch.utils.data import DataLoader
+        from torchvision import datasets, transforms
 
         st.info("Updating embeddings...")
-        dataset = datasets.ImageFolder(root=REGISTERED_DIR, transform=transform)
+        dataset = datasets.ImageFolder(root=REGISTERED_DIR,
+                                      transform=transforms.Compose([
+                                          transforms.Resize((224, 224)),
+                                          transforms.ToTensor()
+                                      ]))
         loader = DataLoader(dataset, batch_size=4)
-
         all_embeddings, all_names = [], []
         with torch.no_grad():
             for imgs, labels in loader:
-                imgs = imgs.to(device)
+                imgs = imgs.to(DEVICE)
                 features = model.vit(pixel_values=imgs).last_hidden_state[:, 0]
                 all_embeddings.append(features.cpu().numpy())
                 all_names += [dataset.classes[label] for label in labels]

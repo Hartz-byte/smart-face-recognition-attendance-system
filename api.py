@@ -1,3 +1,5 @@
+# uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware

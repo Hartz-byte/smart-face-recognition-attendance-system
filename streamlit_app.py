@@ -10,7 +10,7 @@ import time
 API_URL_ROOT = "http://localhost:8000"
 FEEDBACK_DIR = "./feedback_frames"
 FEEDBACK_LOG = os.path.join(FEEDBACK_DIR, "feedback_log.json")
-EMOTION_CLASSES = ["angry", "disgust", "fear", "happy", "sad", "surprise", "neutral"]
+EMOTION_CLASSES = ["Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral"]
 os.makedirs(FEEDBACK_DIR, exist_ok=True)
 
 def call_predict_api(frame):
@@ -63,8 +63,8 @@ option = st.sidebar.selectbox("Choose Option", [
 
 if option == "Run System (Camera)":
     sample_interval = st.sidebar.slider("Sampling Interval (sec)", 0.1, 2.0, 0.5, 0.1)
-    frame_width = st.sidebar.selectbox("Frame Width", [640, 320, 160], index=1)
-    frame_height = st.sidebar.selectbox("Frame Height", [480, 240, 120], index=1)
+    frame_width = st.sidebar.selectbox("Frame Width", [640, 320, 160], index=0)
+    frame_height = st.sidebar.selectbox("Frame Height", [480, 240, 120], index=0)
     cam_index = st.sidebar.number_input("Camera Index", value=0, step=1)
     stframe = st.empty()
     run = st.button("Start Camera", type="primary", key="start_cam")

@@ -13,7 +13,7 @@ with open(feedback_log, "r") as f:
 
 for entry in feedbacks:
     image_path = entry["image"]
-    # Face dataset (skip unknowns for now if you wish)
+    # Face dataset
     if entry["corrected_name"].lower() != "unknown":
         person_folder = os.path.join(face_out_dir, entry["corrected_name"])
         os.makedirs(person_folder, exist_ok=True)
